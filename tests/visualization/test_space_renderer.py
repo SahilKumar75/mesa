@@ -1,6 +1,7 @@
 """Test cases for the SpaceRenderer class in Mesa."""
 
 import random
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import numpy as np
@@ -14,7 +15,7 @@ from mesa.discrete_space import (
     VoronoiGrid,
 )
 from mesa.visualization.backends import altair_backend, matplotlib_backend
-from mesa.visualization.components import PropertyLayerStyle
+from mesa.visualization.components import AgentPortrayalStyle, PropertyLayerStyle
 from mesa.visualization.space_drawers import (
     OrthogonalSpaceDrawer,
     VoronoiSpaceDrawer,
@@ -110,6 +111,35 @@ def test_render_calls():
     sr.draw_structure.assert_called_once()
     sr.draw_agents.assert_called_once()
     sr.draw_property_layer.assert_called_once()
+
+
+@pytest.mark.parametrize("backend", ["matplotlib", "altair"])
+def test_agent_style_instance_uses_each_agents_position(backend):
+    """A shared style should not retain coordinates from the first agent."""
+    sr = SpaceRenderer(CustomModel(), backend=backend)
+    style = AgentPortrayalStyle(color="red", size=25)
+    sr.setup_agents(style)
+
+    agents = [SimpleNamespace(position=(0, 0)), SimpleNamespace(position=(1, 1))]
+    data = sr.backend_renderer.collect_agent_data(
+        SimpleNamespace(agents=agents), sr.agent_portrayal
+    )
+
+    assert np.array_equal(data["loc"], [[0, 0], [1, 1]])
+    assert style.x is None and style.y is None
+    assert sr.agent_portrayal(agents[0]) is not sr.agent_portrayal(agents[1])
+
+
+def test_setup_agents_keeps_callable_portrayal():
+    """A per-agent portrayal remains callable without replacement."""
+    sr = SpaceRenderer(CustomModel())
+
+    def portrayal(agent):
+        return AgentPortrayalStyle(color=agent.color)
+
+    sr.setup_agents(portrayal)
+
+    assert sr.agent_portrayal is portrayal
 
 
 def test_no_property_layers():

@@ -8,10 +8,11 @@ from __future__ import annotations
 
 import warnings
 from collections.abc import Callable
+from dataclasses import replace
 from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
-    from mesa.visualization.components import PropertyLayerStyle
+    from mesa.visualization.components import AgentPortrayalStyle, PropertyLayerStyle
 
 import altair as alt
 import pandas as pd
@@ -163,18 +164,29 @@ class SpaceRenderer:
 
         return self
 
-    def setup_agents(self, agent_portrayal: Callable, **kwargs) -> SpaceRenderer:
+    def setup_agents(
+        self, agent_portrayal: Callable | AgentPortrayalStyle, **kwargs
+    ) -> SpaceRenderer:
         """Setup agents on the space without drawing.
 
         Args:
-            agent_portrayal (Callable): Function that takes an agent and returns AgentPortrayalStyle.
+            agent_portrayal (Callable | AgentPortrayalStyle): A style shared by all agents,
+                or a function that returns a style for each agent.
             **kwargs: Additional keyword arguments for the setup function.
             Checkout respective `SpaceDrawer` class on details how to pass **kwargs.
 
         Returns:
             SpaceRenderer: The current instance for method chaining.
         """
-        self.agent_portrayal = agent_portrayal
+        # Import here to avoid circular imports.
+        from mesa.visualization.components import AgentPortrayalStyle  # noqa: PLC0415
+
+        if isinstance(agent_portrayal, AgentPortrayalStyle):
+            # Backends fill in missing coordinates on the returned style. Give each
+            # agent a copy so those coordinates do not leak to the next agent.
+            self.agent_portrayal = lambda _: replace(agent_portrayal)
+        else:
+            self.agent_portrayal = agent_portrayal
         self.draw_agent_kwargs = kwargs
         self.agent_mesh = None
 
